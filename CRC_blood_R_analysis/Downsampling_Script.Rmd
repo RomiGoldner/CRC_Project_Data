@@ -1,0 +1,112 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r warning = FALSE}
+library(readr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(immunarch)
+library(data.table)
+```
+
+
+```{r}
+immdata <- repLoad("/home/ubuntu/CRC_blood/IP_outputs")
+```
+
+Right now each sample has the TRA and TRB sequences separate, which need to be joined.
+
+```{r}
+# Extract the unique identifiers for TRA and TRB pairs
+data_names <- names(immdata$data)
+unique_ids <- unique(sub("_(TRA|TRB)_.*", "", data_names))
+```
+
+```{r}
+# Initialize a new list for combined data
+combined_data <- list()
+
+# Loop through each unique ID to combine its TRA and TRB data
+for (id in unique_ids) {
+  tra_name <- grep(paste0(id, "_TRA_"), data_names, value = TRUE)
+  trb_name <- grep(paste0(id, "_TRB_"), data_names, value = TRUE)
+  
+  # Assuming the data are data frames and you want to combine them row-wise
+  # Adjust according to your data's actual structure
+  if (length(tra_name) == 1 && length(trb_name) == 1) {
+    combined_data[[id]] <- rbind(immdata$data[[tra_name]], immdata$data[[trb_name]])
+  }
+}
+```
+
+Now remove the old immdata object and make a new one with the combined data.
+
+```{r}
+remove(immdata)
+```
+
+```{r}
+# This should match the structure and content of your actual metadata
+combined_meta <- data.frame(
+  SampleID = names(combined_data),
+  stringsAsFactors = FALSE
+)
+
+# Step 3: Construct the immdata object
+immdata <- list(
+  data = combined_data,
+  meta = combined_meta
+)
+```
+
+Find Low Clones
+
+```{r}
+exp_vol <- repExplore(immdata$data, .method = "volume")
+p3 <- vis(exp_vol)
+p3
+```
+
+```{r}
+clones<-repExplore(immdata$data, .method = "clones")
+order = arrange(clones, Clones)
+rownames(order) = c()
+head(order)
+```
+
+Remove Samples with Clones under 10,000
+
+```{r}
+immdata$data[which(names(immdata$data) %in% c("pool8_S5", "pool8_S7", "pool2_S1", "pool4_S17", "pool8_S24"))] <- NULL
+```
+
+```{r}
+downsampledData = repSample(immdata$data, .method = "downsample")
+```
+
+```{r}
+# Combine all data frames into one, adding a 'SampleID' column to identify the origin of each row
+combined_df <- do.call(rbind, lapply(names(downsampledData), function(sample_name) {
+  df <- downsampledData[[sample_name]]
+  df$SampleID <- sample_name # Add a column to identify the sample
+  return(df)
+}))
+```
+
+
+```{r}
+downsampledDataMatrix <- data.matrix(combined_df)
+```
+
+
+Export to csv
+
+```{r}
+write.csv(combined_df,"/home/ubuntu/CRC_blood/downsampled_data.csv", row.names = T)
+```
+```
+
+

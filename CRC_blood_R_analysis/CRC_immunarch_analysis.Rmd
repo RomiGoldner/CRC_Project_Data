@@ -1,0 +1,135 @@
+---
+title: "Untitled2"
+output: html_document
+date: "2025-02-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#load(CRC_immdata.RData)
+```
+
+
+## R Markdown
+
+# Load data and downsample
+
+```{r}
+#### PASTE immdata code here ####
+```
+
+# Add TNM Labels 
+
+```{r}
+labels <- read.csv("/home/ubuntu/CRC/CRC_Project/CRC_blood/CRC_blood_data/t_n_m_labels.csv", 
+                   header = FALSE, 
+                   stringsAsFactors = FALSE,
+                   col.names = c("Sample", "Sample2", "T", "N", "M"))
+
+# Step 2: Optionally drop the redundant column if it’s not needed.
+labels <- labels[, c("Sample", "T", "N", "M")]
+
+# (Optional) View the labels data frame to verify it looks correct.
+head(labels)
+```
+```{r}
+# Merge labels
+immdata$meta <- merge(immdata$meta, labels, by.x = "SampleID", by.y = "Sample", all.x = TRUE)
+```
+
+# Downsample 
+```{r}
+downsampledData = repSample(immdata$data, .method = "downsample")
+```
+
+# Add Stage
+
+```{r}
+library(dplyr)
+
+# Copy the metadata
+stage_metadata <- immdata$meta
+
+stage_metadata <- stage_metadata %>%
+  mutate(
+    T_num = suppressWarnings(as.numeric(T)),
+    N_num = suppressWarnings(as.numeric(N)),
+    M_num = suppressWarnings(as.numeric(M))
+  )
+```
+
+```{r}
+stage_metadata <- stage_metadata %>%
+  mutate(
+    Stage = case_when(
+      # Stage IV: any T, any N, M > 0
+      !is.na(M_num) & M_num > 0 ~ "Stage IV",
+      
+      # Stage III: any T, N=1 or 2, M=0
+      !is.na(N_num) & (N_num %in% c(1, 2)) & (!is.na(M_num) & M_num == 0) ~ "Stage III",
+      
+      # Stage II: T=3 or 4, N=0, M=0
+      (T_num %in% c(3, 4)) & (!is.na(N_num) & N_num == 0) & (!is.na(M_num) & M_num == 0) ~ "Stage II",
+      
+      # Stage I: T=1 or 2, N=0, M=0
+      (T_num %in% c(1, 2)) & (!is.na(N_num) & N_num == 0) & (!is.na(M_num) & M_num == 0) ~ "Stage I",
+      
+      # Everything else or incomplete: Unknown
+      TRUE ~ "Unknown"
+    )
+  )
+```
+
+
+```{r echo=TRUE, fig.width=7, fig.height=5}
+# Example: repertoire volume
+uniq <- repExplore(downsampledData, .method = "volume")
+png("rep_volume_plot.png", width=1200, height=900)
+vis(uniq, .by = "Stage", .meta = stage_metadata, .test = FALSE)
+```
+
+# analysis
+1. unique
+2. clonality (top, rare)
+3. diversity (true diversity, inverse simpson, gini simpson)
+
+1. unique
+```{r}
+uniq<-repExplore(downsampledData, .method = "volume")
+vis(uniq, .by = c("Stage"), .meta = immdata$meta)
+```
+
+2. clonality
+```{r}
+top <- repClonality(sub, .method = "top", .head= c(10,100,1000,3000,10000,30000)) 
+
+vis(top, .by = c("disease"), .meta = immdata$meta)
+```
+
+```{r}
+rare <- repClonality(sub, .method = "rare")
+
+vis(rare, .by = c("disease"), .meta = immdata$meta)
+```
+
+3. diversity
+```{r}
+trued <- repDiversity(sub, .method = "div", .verbose = F)
+
+vis(trued, .by = c("disease"), .meta = immdata$meta)
+```
+
+```{r}
+inv <- repDiversity(sub, .method = "inv.simp", .verbose = F)
+
+vis(inv, .by = c("disease"), .meta = immdata$meta)
+```
+
+```{r}
+simp <- repDiversity(sub, .method = "gini.simp", .verbose = F)
+
+vis(simp, .by = c("disease"), .meta = immdata$meta)
+```
