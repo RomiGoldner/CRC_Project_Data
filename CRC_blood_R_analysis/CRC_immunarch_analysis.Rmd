@@ -6,12 +6,15 @@ date: "2025-02-11"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(immunarch)
+library(ragg)
 ```
 
 ```{r}
 #load(CRC_immdata.RData)
 ```
-
 
 ## R Markdown
 
@@ -36,20 +39,16 @@ labels <- labels[, c("Sample", "T", "N", "M")]
 head(labels)
 ```
 ```{r}
+# Filter immdata$meta so it only has rows for the samples still in immdata$data
+immdata$meta <- immdata$meta[immdata$meta$SampleID %in% names(immdata$data), ]
+
 # Merge labels
 immdata$meta <- merge(immdata$meta, labels, by.x = "SampleID", by.y = "Sample", all.x = TRUE)
 ```
 
-# Downsample 
-```{r}
-downsampledData = repSample(immdata$data, .method = "downsample")
-```
 
 # Add Stage
-
 ```{r}
-library(dplyr)
-
 # Copy the metadata
 stage_metadata <- immdata$meta
 
@@ -84,52 +83,179 @@ stage_metadata <- stage_metadata %>%
 ```
 
 
-```{r echo=TRUE, fig.width=7, fig.height=5}
-# Example: repertoire volume
-uniq <- repExplore(downsampledData, .method = "volume")
-png("rep_volume_plot.png", width=1200, height=900)
-vis(uniq, .by = "Stage", .meta = stage_metadata, .test = FALSE)
+# Downsample 
+```{r}
+downsampledData = repSample(immdata$data, .method = "downsample")
 ```
 
-# analysis
+
+############################################################
+### Analyses with Stage (wihtout Unknown) ###
+############################################################
+
 1. unique
 2. clonality (top, rare)
 3. diversity (true diversity, inverse simpson, gini simpson)
 
+```{r}
+# Repertoire Volume (Number of Unique Clones)
+
+# Filter out any samples where Stage is NA or labeled "Unknown"
+stage_metadata_filtered <- stage_metadata[!is.na(stage_metadata$Stage), ]
+stage_metadata_filtered <- subset(stage_metadata_filtered, Stage != "Unknown")
+stage_metadata_filtered <- stage_metadata_filtered %>%
+  rename(Sample = SampleID)
+
+# Also filter the actual data so the sample names align
+downsampledData_filtered <- downsampledData[names(downsampledData) %in% stage_metadata_filtered$Sample]
+```
+
+
+```{r}
+# Now run your code with the filtered data
+uniq <- repExplore(downsampledData_filtered, .method = "volume")
+agg_png("rep_volume_stages_plot.png", width = 1200, height = 900, res = 144)
+p_uniq <- vis(uniq, .by = "Stage", .meta = stage_metadata_filtered, .test = FALSE)
+print(p_uniq)
+dev.off()
+```
+
+
+```{r}
+# Clonality (Top clones)
+top <- repClonality(downsampledData_filtered, .method = "top", .head = c(10,100,1000))
+
+ragg::agg_png("clonality_top_clones_stages_plot.png", width = 1200, height = 900, res = 144)
+p_top <- vis(top, .by = "Stage", .meta = stage_metadata_filtered, .test = FALSE)
+print(p_top)
+dev.off()
+```
+
+```{r}
+# Diversity (True diversity)
+trued <- repDiversity(downsampledData_filtered, .method = "div", .verbose = FALSE)
+ragg::agg_png("true_diversity_stages_plot.png", width = 1200, height = 900, res = 144)
+p_trued <- vis(trued, .by = "Stage", .meta = stage_metadata_filtered, .test = FALSE)
+print(p_trued)
+dev.off()
+```
+
+# Other diversity indices:
+
+```{r}
+# "inv.simp" (Inverse Simpson), "gini.simp", etc.
+inv <- repDiversity(downsampledData_filtered, .method = "inv.simp", .verbose = FALSE)
+ragg::agg_png("inverse_simpson_diversity_stages_plot.png", width = 1200, height = 900, res = 144)
+p_inv <- vis(inv, .by = "Stage", .meta = stage_metadata_filtered, .test = FALSE)
+print(p_inv)
+dev.off()
+
+
+simp <- repDiversity(downsampledData_filtered, .method = "gini.simp", .verbose = FALSE)
+ragg::agg_png("gini_simpson_diversity_stages_plot.png", width = 1200, height = 900, res = 144)
+p_gini <- vis(simp, .by = "Stage", .meta = stage_metadata_filtered, .test = FALSE)
+print(p_gini)
+dev.off()
+```
+
+############################################################
+### Analyses with Stage with Unknown ###
+############################################################
+
 1. unique
-```{r}
-uniq<-repExplore(downsampledData, .method = "volume")
-vis(uniq, .by = c("Stage"), .meta = immdata$meta)
-```
-
-2. clonality
-```{r}
-top <- repClonality(sub, .method = "top", .head= c(10,100,1000,3000,10000,30000)) 
-
-vis(top, .by = c("disease"), .meta = immdata$meta)
-```
+2. clonality (top, rare)
+3. diversity (true diversity, inverse simpson, gini simpson)
 
 ```{r}
-rare <- repClonality(sub, .method = "rare")
+############################################################
+### Analyses with Stage ###
+############################################################
+# Repertoire Volume (Number of Unique Clones)
 
-vis(rare, .by = c("disease"), .meta = immdata$meta)
+# Filter out any samples where Stage is NA or labeled "Unknown"
+stage_metadata_filt_unknown <- stage_metadata[!is.na(stage_metadata$Stage), ]
+stage_metadata_filt_unknown <- stage_metadata_filt_unknown %>%
+  rename(Sample = SampleID)
+
+# Also filter the actual data so the sample names align
+downsampledData_filt_unknown <- downsampledData[names(downsampledData) %in% stage_metadata_filt_unknown$Sample]
 ```
 
-3. diversity
-```{r}
-trued <- repDiversity(sub, .method = "div", .verbose = F)
-
-vis(trued, .by = c("disease"), .meta = immdata$meta)
-```
-
-```{r}
-inv <- repDiversity(sub, .method = "inv.simp", .verbose = F)
-
-vis(inv, .by = c("disease"), .meta = immdata$meta)
-```
 
 ```{r}
-simp <- repDiversity(sub, .method = "gini.simp", .verbose = F)
-
-vis(simp, .by = c("disease"), .meta = immdata$meta)
+# Now run your code with the filtered data
+uniq <- repExplore(downsampledData_filt_unknown, .method = "volume")
+agg_png("rep_volume_unkown_stages_plot.png", width = 1200, height = 900, res = 144)
+p_uniq <- vis(uniq, .by = "Stage", .meta = stage_metadata_filt_unknown, .test = FALSE)
+print(p_uniq)
+dev.off()
 ```
+
+
+```{r}
+# Clonality (Top clones)
+top <- repClonality(downsampledData_filt_unknown, .method = "top", .head = c(10,100,1000))
+
+ragg::agg_png("clonality_top_clones_unknown_stages_plot.png", width = 1200, height = 900, res = 144)
+p_top <- vis(top, .by = "Stage", .meta = stage_metadata_filt_unknown, .test = FALSE)
+print(p_top)
+dev.off()
+```
+
+```{r}
+# Diversity (True diversity)
+trued <- repDiversity(downsampledData_filt_unknown, .method = "div", .verbose = FALSE)
+ragg::agg_png("true_diversity_unkown_stages_plot.png", width = 1200, height = 900, res = 144)
+p_trued <- vis(trued, .by = "Stage", .meta = stage_metadata_filt_unknown, .test = FALSE)
+print(p_trued)
+dev.off()
+```
+
+# Other diversity indices:
+
+```{r}
+# "inv.simp" (Inverse Simpson), "gini.simp", etc.
+inv <- repDiversity(downsampledData_filt_unknown, .method = "inv.simp", .verbose = FALSE)
+ragg::agg_png("inverse_simpson_diversity_unknown_stages_plot.png", width = 1200, height = 900, res = 144)
+p_inv <- vis(inv, .by = "Stage", .meta = stage_metadata_filt_unknown, .test = FALSE)
+print(p_inv)
+dev.off()
+
+
+simp <- repDiversity(downsampledData_filt_unknown, .method = "gini.simp", .verbose = FALSE)
+ragg::agg_png("gini_simpson_diversity_unknown_stages_plot.png", width = 1200, height = 900, res = 144)
+p_gini <- vis(simp, .by = "Stage", .meta = stage_metadata_filt_unknown, .test = FALSE)
+print(p_gini)
+dev.off()
+```
+
+Present the Stages counts
+
+```{r}
+# dataframe with stage counts
+stage_counts <- stage_metadata %>%
+  group_by(Stage) %>%
+  summarise(Count = n())
+
+agg_png("stage_counts_with_labels.png", width = 1200, height = 900, res = 144)
+
+# Create the ggplot 
+p <- ggplot(stage_counts, aes(x = Stage, y = Count, fill = Stage)) +
+  geom_bar(stat = "identity") +
+  # Add text labels: label = Count and position above the bars
+  geom_text(aes(label = Count), 
+            vjust = -0.3,
+            size = 4,             
+            fontface = "plain") +  
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Count of Samples by Stage",
+       x = "Stage",
+       y = "Number of Samples") +
+  theme_minimal()
+
+print(p)
+
+dev.off()
+```
+
+
