@@ -44,4 +44,4 @@ This project involves the analysis of immune repertoire data obtained from the b
    - Reproduce the analysis by following the steps outlined in each analysis script provided in the repository.
 
 ## Data Availability
-XXXXXXXXX
+Raw sequencing reads have been deposited in the SRA database under SRA and Bioproject ID PRJNA1227151.
