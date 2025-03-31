@@ -37,8 +37,8 @@ This project involves the analysis of immune repertoire data obtained from the b
    ```sh
    git clone https://github.com/RomiGoldner/CRC_Project_Data.git
 2. Requiremtnets:
-   - R version XXXX
-   - immunarch package version XXXX
+   - R version 4.4.2
+   - immunarch package version 0.9.0
 
 ## Usage
    - Reproduce the analysis by following the steps outlined in each analysis script provided in the repository.
